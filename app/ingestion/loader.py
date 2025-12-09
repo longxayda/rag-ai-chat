@@ -1,11 +1,10 @@
+import os
 from pypdf import PdfReader
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import os
-import json
 
-def retrieve_files_from(directory):
+def retrieve_files_from(directory: str) -> list[Path]:
     """
     Return files from a directory
     """
@@ -23,9 +22,9 @@ class BaseLoader():
         - metadata (name, path, size, type)
     """
     def __init__(self, file_path):
-        self.file_path = file_path
-        self.metadata = {}
-        self.pages = []
+        self.file_path: str = file_path
+        self.metadata: dict[str, Any] = {}
+        self.pages: list[str] = []
 
     def load(self):
         raise NotImplementedError("load() must be implemented by subclass")
@@ -38,7 +37,7 @@ class BaseLoader():
             "file_type": os.path.splitext(self.file_path)[1].lower()
         }
     
-    def to_document(self, page, page_index):
+    def to_document(self, page: str, page_index: int) -> dict[str, Any]:
         return {
             "id": f"{self.file_path.stem}_page_{page_index}",
             "page_index": page_index,
@@ -55,11 +54,11 @@ class HtmlLoader(BaseLoader):
     pass
 
 class NullLoader(BaseLoader):
-    def load(self):
+    def load(self) -> list:
         return []
 
 class PdfLoader(BaseLoader):
-    def load(self):
+    def load(self) -> None:
         print("Using PDF Loader...")
         try:
             reader = PdfReader(self.file_path)
@@ -76,7 +75,7 @@ class PdfLoader(BaseLoader):
             self.pages = []
 
 
-def get_loader(file_path: str) -> BaseLoader:
+def get_loader(file_path: Path) -> BaseLoader:
     """
     Choose approriate Loader based on file extension (.pdf, .html, .txt, ...)
     """
@@ -92,7 +91,7 @@ def get_loader(file_path: str) -> BaseLoader:
     else:
         raise ValueError(f"Unsupported file type: {ext}")
         
-def process_file(file_path: str) -> dict:
+def process_file(file_path: Path) -> list[dict] | dict[str, Any]:
     """
     Single file processing (1 Loader):
       - load
@@ -102,8 +101,8 @@ def process_file(file_path: str) -> dict:
     loader = get_loader(file_path=file_path)
     file_pages = []
     try:
-        loader.load()   # get pages
-        pages = loader.pages
+        loader.load()   # get pages attribute
+        pages: list[str] = loader.pages
         for page_index, page in enumerate(pages):
             loader.extract_metadata()
             file_pages.append(loader.to_document(page=page, page_index=page_index))
@@ -112,11 +111,11 @@ def process_file(file_path: str) -> dict:
         print(f"Error processing file {file_path}: {e}")
         return {"text": "", "metadata": {"file_path": file_path, "error": str(e)}}
 
-def process_files_concurrently(files: list, max_workers: int = 4) -> list:
+def process_files_concurrently(files: list[Path], max_workers: int = 4) -> list:
     """
     Process many Loaders on many threads
     """
-    documents = []
+    documents: list[dict] = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(process_file, file) for file in files]
         for future in as_completed(futures):

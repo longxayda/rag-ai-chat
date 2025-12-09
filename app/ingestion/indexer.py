@@ -1,13 +1,14 @@
+import os
+import json
 import psycopg2
 from psycopg2.extras import execute_values
-import json
 from sentence_transformers import SentenceTransformer
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+
 model = SentenceTransformer(EMBEDDING_MODEL)
 
 
@@ -25,7 +26,7 @@ def get_connection():
     """
     return psycopg2.connect(**config)
 
-def init_db():
+def init_db() -> None:
     """
     Connect to Postgres and create table if exists
     """
@@ -49,42 +50,7 @@ def init_db():
     conn.close()
 
 
-def insert_documents(chunks):
-    """
-    Insert parent documents to documents table only once.
-    """
-    conn = get_connection()
-    cur = conn.cursor()
-
-    # group chunks by parent doc ID
-    docs = {}
-    for c in chunks:
-        doc_id = c["id"].split("_chunk_")[0]
-        if doc_id not in docs:
-            docs[doc_id] = {
-                "content": "",
-                "metadata": c.get("metadata", {})
-            }
-        docs[doc_id]["content"] += c["text"] + "\n"
-
-    data = [(doc_id, d["content"], json.dumps(d["metadata"]))
-            for doc_id, d in docs.items()]
-
-    execute_values(cur,
-        """
-        INSERT INTO documents (id, content, metadata)
-        VALUES %s
-        ON CONFLICT (id) DO NOTHING
-        """,
-        data
-    )
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-
-def insert_embeddings(chunks, embeddings):
+def insert_embeddings(chunks: list[dict], embeddings) -> None:
     """
     Insert embedding vectors to embeddings table
     """
@@ -94,10 +60,10 @@ def insert_embeddings(chunks, embeddings):
     rows = []
     for chunk, emb in zip(chunks, embeddings):
         rows.append((
-            chunk["id"],                       # id
-            chunk["text"], 
-            emb.tolist(),                      # embedding as python list
-            chunk["chunk_index"],              # chunk number
+            chunk["id"],                     
+            chunk["text"],
+            emb.tolist(),              
+            chunk["chunk_index"],
             json.dumps(chunk.get("metadata", {}))
         ))
 
@@ -118,7 +84,7 @@ def insert_embeddings(chunks, embeddings):
     conn.close()
 
 
-def search_similar(text_query: str, top_k=5):
+def search_similar(text_query: str, top_k: int = 5) -> list[tuple]:
     """
     Search similar chunks using pgvector cosine distance.
     """

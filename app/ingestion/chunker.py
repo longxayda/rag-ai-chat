@@ -2,15 +2,16 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+
 class Chunker():
-    def __init__(self, doc):
+    def __init__(self, doc: dict):
         self.doc = doc
         self.chunks = []
         self.chunked_doc = []
         self.chunk_size: int = 1000
         self.chunk_overlap: int = 200
 
-    def chunk(self):
+    def chunk(self) -> None:
         """
         Perform fixed sized chunking
         """
@@ -23,7 +24,7 @@ class Chunker():
         # Split the text into chunks
         self.chunks = text_splitter.split_text(self.doc['text'])
     
-    def to_chunked_doc(self):
+    def to_chunked_doc(self) -> list[dict]:
         """
         Return chunked doc with metadata
         """
@@ -37,7 +38,7 @@ class Chunker():
             self.chunked_doc.append(chunk)
         return self.chunked_doc
 
-def process_chunk(doc):
+def process_chunk(doc: list[dict]) -> list[dict]:
     """
     Process 1 chunker
     """
@@ -46,11 +47,11 @@ def process_chunk(doc):
     chunked_doc = chunker.to_chunked_doc()
     return chunked_doc
 
-def process_chunks_concurrently(docs: list, max_workers=4) -> list:
+def process_chunks_concurrently(docs: list, max_workers=4) -> list[dict]:
     """
     Process many Chunkers
     """
-    chunked_docs = []
+    chunked_docs: list = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(process_chunk, doc) for doc in docs]
         for future in as_completed(futures):

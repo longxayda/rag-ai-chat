@@ -2,8 +2,9 @@ from sentence_transformers import SentenceTransformer
 from pathlib import Path
 import json
 import numpy as np
+from numpy import ndarray
 
-def get_embeddings(processed_file_path: Path = Path.cwd() / "data" / "processed" / "chunks.json"):
+def get_embeddings(processed_file_path: Path = Path.cwd() / "data" / "processed" / "chunks.json") -> tuple[list[dict], ndarray]:
     """
     Loads text chunks from a JSON file, computes their embeddings, and returns
     the chunks and the embeddings.
@@ -30,8 +31,9 @@ def get_embeddings(processed_file_path: Path = Path.cwd() / "data" / "processed"
     if not processed_file_path.exists():
         raise FileNotFoundError(f"{processed_file_path} not found")
 
+
     with processed_file_path.open("r", encoding="utf-8") as file:
-        chunks = json.load(file)
+        chunks: list[dict] = json.load(file)
 
     sentences = [chunk["text"] for chunk in chunks]
 
