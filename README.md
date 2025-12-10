@@ -103,7 +103,7 @@ ollama ps          # verify running model
 Run the RAG backend API:
 
 ```
-poetry run uvicorn app.main:app --reload
+poetry run uvicorn src.main:app --reload
 ```
 
 ---

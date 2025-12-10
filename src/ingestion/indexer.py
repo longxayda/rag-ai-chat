@@ -1,9 +1,11 @@
 import os
 import json
+import sys
 import psycopg2
 from psycopg2.extras import execute_values
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
+from psycopg2 import pool, OperationalError, errorcodes, errors
 
 load_dotenv()
 
@@ -20,34 +22,58 @@ config = {
     "password": os.getenv("POSTGRES_PASSWORD")
 }
 
-def get_connection():
-    """
-    Connect to Postgres
-    """
-    return psycopg2.connect(**config)
+
+connection_pool = pool.ThreadedConnectionPool(1, 20, **config)
+
+
+
+
+def print_psycopg2_exception(err):
+    err_type, err_obj, traceback = sys.exc_info()
+    line_num = traceback.tb_lineno
+    
+    print ("\npsycopg2 ERROR:", err, "on line number:", line_num)
+    print ("psycopg2 traceback:", traceback, "-- type:", err_type)
+
+    # psycopg2 extensions.Diagnostics object attribute
+    print ("\nextensions.Diagnostics:", err.diag)
+
+    # print the pgcode and pgerror exceptions
+    print ("pgerror:", err.pgerror)
+    print ("pgcode:", err.pgcode, "\n")
 
 def init_db() -> None:
     """
     Connect to Postgres and create table if exists
     """
-    conn = get_connection()
-    cur = conn.cursor()
+    if conn != None:
+        cur = conn.cursor()
 
-    cur.execute("""
-        CREATE EXTENSION IF NOT EXISTS vector;
-        
-        CREATE TABLE IF NOT EXISTS embeddings (
-            id TEXT PRIMARY KEY,               -- chunk id
-            text TEXT NOT NULL,                -- chunk text
-            embedding VECTOR(384) NOT NULL,    -- pgvector column
-            chunk_index INT NOT NULL,          -- chunk index for ordering
-            metadata JSONB,                    -- any metadata from your chunker
-            created_at TIMESTAMP DEFAULT NOW() -- optional timestamp
-        );
-    """)
-    conn.commit()
-    cur.close()
-    conn.close()
+        try:
+            cur.execute("""
+                CREATE EXTENSION IF NOT EXISTS vector;
+                
+                CREATE TABLE IF NOT EXISTS embeddings (
+                    id TEXT PRIMARY KEY,               -- chunk id
+                    text TEXT NOT NULL,                -- chunk text
+                    embedding VECTOR(384) NOT NULL,    -- pgvector column
+                    chunk_index INT NOT NULL,          -- chunk index for ordering
+                    metadata JSONB,                    -- any metadata from your chunker
+                    created_at TIMESTAMP DEFAULT NOW() -- optional timestamp
+                );
+            """)
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print_psycopg2_exception(e)
+            conn.rollback()
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+    
 
 
 def insert_embeddings(chunks: list[dict], embeddings) -> None:
@@ -91,6 +117,8 @@ def search_similar(text_query: str, top_k: int = 5) -> list[tuple]:
     query_emb = model.encode([text_query])[0]
 
     conn = get_connection()
+    if not conn:
+        raise 
     cur = conn.cursor()
 
     results: list[tuple]

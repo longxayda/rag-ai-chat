@@ -1,12 +1,12 @@
-import asyncio
-from typing import AsyncGenerator, List, Tuple, Any
+from typing import AsyncGenerator, List, Tuple
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from ollama import AsyncClient, ChatResponse
+from ollama import AsyncClient
 
 from ..ingestion.indexer import search_similar
+from ..models.dto import QueryRequest
+from ..exceptions.exceptions import ChatNotFoundException
 
 router = APIRouter()
 
@@ -15,12 +15,7 @@ TOP_RELEVANT_CONTEXT = 4
 
 llm_client = AsyncClient()
 
-
-class QueryRequest(BaseModel):
-    query: str
-
-
-def format_context(results: List[Tuple[str, str, dict]]) -> str:
+def format_context(results: List[Tuple]) -> str:
     """
     Formats the raw tuples from the search engine into a readable string.
     Assumption: Tuple structure is (id, content, metadata).
@@ -77,27 +72,27 @@ async def stream_generator(prompt: str) -> AsyncGenerator[str, None]:
 
 # --- API Routes ---
 
+@router.get("/chat/{chat_id}")
+async def get_chat(chat_id: str):
+    raise ChatNotFoundException(chat_id=chat_id)
+
 @router.post("/chat/stream")
 async def rag_stream(request: QueryRequest) -> StreamingResponse:
     """
     Endpoint to retrieve context and stream LLM response.
     """
-    try:
-        # context_tuples = await asyncio.to_thread(search_similar, request.query, top_k=TOP_RELEVANT_CONTEXT)
-        context_tuples = search_similar(request.query, top_k=TOP_RELEVANT_CONTEXT)
-        
-        if not context_tuples:
-            # Fallback if no context is found (Optional logic)
-            context_str = "No relevant documents found."
-        else:
-            context_str = format_context(context_tuples)
+    # context_tuples = await asyncio.to_thread(search_similar, request.query, top_k=TOP_RELEVANT_CONTEXT)
+    context_tuples = search_similar(request.query, top_k=TOP_RELEVANT_CONTEXT)
+    
+    if not context_tuples:
+        context_str = "No relevant documents found."
+    else:
+        context_str = format_context(context_tuples)
 
-        full_prompt = build_rag_prompt(request.query, context_str)
-
-        return StreamingResponse(
-            stream_generator(full_prompt),
-            media_type="text/plain"
-        )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+    full_prompt = build_rag_prompt(request.query, context_str)
+    
+    return StreamingResponse(
+        stream_generator(full_prompt),
+        media_type="text/plain"
+    )
+    
