@@ -1,4 +1,5 @@
 import os
+from abc import ABC, abstractmethod
 from pypdf import PdfReader
 from pathlib import Path
 from typing import List, Any
@@ -14,20 +15,21 @@ def retrieve_files_from(directory: str) -> list[Path]:
     files = [file for file in sorted(p.iterdir()) if file.is_file()]
     return files
 
-class BaseLoader():
+class BaseLoader(ABC):
     """
     Base loader that declares attributes of each document
         - file path
         - pages 
         - metadata (name, path, size, type)
     """
-    def __init__(self, file_path):
+    def __init__(self, file_path: str):
         self.file_path: str = file_path
         self.metadata: dict[str, Any] = {}
         self.pages: list[str] = []
 
+    @abstractmethod
     def load(self):
-        raise NotImplementedError("load() must be implemented by subclass")
+        pass
               
     def extract_metadata(self):
         self.metadata = {

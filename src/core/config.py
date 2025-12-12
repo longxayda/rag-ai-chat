@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
 
+
 # Using lru_cache ensures we only load the .env file once, not on every request
 @lru_cache
 def get_settings():

@@ -1,9 +1,9 @@
 import psycopg2
+import logging
 from psycopg2 import pool
 from .config import settings
-import logging
 
-logger = logging.getLogger(__name__)
+from ..logging.handlers import logger
 
 class Database:
     _pool = None
@@ -20,16 +20,16 @@ class Database:
                 port=settings.postgres_port,
                 dbname=settings.postgres_name
             )
-            print(f"✅ Database pool initialized for: {settings.app_name}")
+            logger.info("✅ Database pool initialized for: %s", settings.app_name)
         except psycopg2.Error as e:
-            print(f"❌ Error connecting to DB: {e}")
-            raise e 
+            logger.exception("Error connection pool")
+            raise e
 
     @classmethod
-    def close(cls):
+    def close(cls) -> None:
         if cls._pool:
             cls._pool.closeall()
-            print("🔒 Database pool closed")
+            logger.info("Database pool closed")
 
     @classmethod
     def get_connection(cls):

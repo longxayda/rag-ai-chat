@@ -5,6 +5,13 @@ import embedder
 import indexer
 from pathlib import Path
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+console_handler = logging.StreamHandler()
+
+
 
 processed_dir = Path.cwd() / "data" / "processed"
 processed_dir.mkdir(parents=True, exist_ok=True)
