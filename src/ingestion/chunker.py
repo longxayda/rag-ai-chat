@@ -1,60 +1,52 @@
-# split the documents into chunks
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from concurrent.futures import ThreadPoolExecutor, as_completed
+# semantic_chunker.py
+import semchunk
+import tiktoken
+from typing import List, Tuple
 
 
-class Chunker():
-    def __init__(self, doc: dict):
-        self.doc = doc
-        self.chunks = []
-        self.chunked_doc = []
-        self.chunk_size: int = 1000
-        self.chunk_overlap: int = 200
-
-    def chunk(self) -> None:
-        """
-        Perform fixed sized chunking
-        """
-        print("Using Chunker...")
-        text_splitter = RecursiveCharacterTextSplitter(
-            separators=["\n\n", "\n", " ", ""],
-            chunk_size=self.chunk_size, 
-            chunk_overlap=self.chunk_overlap)
-        
-        # Split the text into chunks
-        self.chunks = text_splitter.split_text(self.doc['text'])
-    
-    def to_chunked_doc(self) -> list[dict]:
-        """
-        Return chunked doc with metadata
-        """
-        for index, content in enumerate(self.chunks):
-            chunk = {
-                "id": f"{self.doc.get('id')}_chunk_{index}",
-                "chunk_index": index,
-                "text": content,
-                "metadata": self.doc.get('metadata', {}).copy(),
-            }
-            self.chunked_doc.append(chunk)
-        return self.chunked_doc
-
-def process_chunk(doc: list[dict]) -> list[dict]:
+def semantic_chunk_text(
+    text: str,
+    chunk_size: int = 512,
+    overlap: float | int = 0.15,
+    return_offsets: bool = False,
+) -> List[str] | Tuple[List[str], List[tuple]]:
     """
-    Process 1 chunker
-    """
-    chunker = Chunker(doc=doc)
-    chunker.chunk()
-    chunked_doc = chunker.to_chunked_doc()
-    return chunked_doc
+    Semantic chunking using semchunk.
 
-def process_chunks_concurrently(docs: list, max_workers=4) -> list[dict]:
+    Args:
+        text (str): Full document text
+        chunk_size (int): Max tokens per chunk
+        overlap (float|int): Token overlap (ratio <1 or absolute >=1)
+        return_offsets (bool): Whether to return (chunks, offsets)
+
+    Returns:
+        list[str] OR (list[str], list[offsets])
     """
-    Process many Chunkers
-    """
-    chunked_docs: list = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(process_chunk, doc) for doc in docs]
-        for future in as_completed(futures):
-            for chunk in future.result():
-                chunked_docs.append(chunk)
-    return chunked_docs
+
+    if not text or not text.strip():
+        return [] if not return_offsets else ([], [])
+
+    # --- Tokenizer (recommended for RAG) ---
+    tokenizer = tiktoken.encoding_for_model("gpt-4")
+
+    # --- Build chunker ---
+    chunker = semchunk.chunkerify(
+        tokenizer,
+        chunk_size=chunk_size,
+    )
+
+    # --- Chunk ---
+    if return_offsets:
+        chunks, offsets = chunker(
+            text,
+            offsets=True,
+            overlap=overlap,
+        )
+        return chunks, offsets
+
+    chunks = chunker(
+        text,
+        overlap=overlap,
+    )
+
+    return chunks

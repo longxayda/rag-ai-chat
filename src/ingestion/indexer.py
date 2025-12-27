@@ -1,153 +1,93 @@
-import os
-import json
+import numpy as np
 import sys
-import psycopg2
-from psycopg2.extras import execute_values
+import asyncpg
+from fastapi import HTTPException
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
-from psycopg2 import pool, OperationalError, errorcodes, errors
+from fastapi import Depends
+
+from ..core.database import get_db_conn
 
 load_dotenv()
 
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-
 model = SentenceTransformer(EMBEDDING_MODEL)
 
 
-config = {
-    "host": os.getenv("POSTGRES_HOST"),
-    "port": int(os.getenv("POSTGRES_PORT")) or 5432,
-    "dbname": os.getenv("POSTGRES_NAME"),
-    "user": os.getenv("POSTGRES_USER"),
-    "password": os.getenv("POSTGRES_PASSWORD")
-}
-
-
-connection_pool = pool.ThreadedConnectionPool(1, 20, **config)
-
-
-
-
-def print_psycopg2_exception(err):
+def print_asyncpg_exception(err):
+    """
+    Simpler handler for asyncpg exceptions. 
+    A proper logger is recommended here.
+    """
     err_type, err_obj, traceback = sys.exc_info()
     line_num = traceback.tb_lineno
     
-    print ("\npsycopg2 ERROR:", err, "on line number:", line_num)
-    print ("psycopg2 traceback:", traceback, "-- type:", err_type)
+    print("\nasyncpg ERROR:", err, "on line number:", line_num)
+    print("asyncpg traceback:", traceback, "-- type:", err_type)
+    # asyncpg exceptions often have the detail/hint in the main exception object
 
-    # psycopg2 extensions.Diagnostics object attribute
-    print ("\nextensions.Diagnostics:", err.diag)
+import json
+import numpy as np
+from fastapi import HTTPException
 
-    # print the pgcode and pgerror exceptions
-    print ("pgerror:", err.pgerror)
-    print ("pgcode:", err.pgcode, "\n")
-
-def init_db() -> None:
+async def insert_embeddings(chunks: list[dict], embeddings: np.ndarray, conn) -> None:
     """
-    Connect to Postgres and create table if exists
+    Insert embedding vectors to embeddings table using asyncpg's copy mechanism.
     """
-    if conn != None:
-        cur = conn.cursor()
-
-        try:
-            cur.execute("""
-                CREATE EXTENSION IF NOT EXISTS vector;
-                
-                CREATE TABLE IF NOT EXISTS embeddings (
-                    id TEXT PRIMARY KEY,               -- chunk id
-                    text TEXT NOT NULL,                -- chunk text
-                    embedding VECTOR(384) NOT NULL,    -- pgvector column
-                    chunk_index INT NOT NULL,          -- chunk index for ordering
-                    metadata JSONB,                    -- any metadata from your chunker
-                    created_at TIMESTAMP DEFAULT NOW() -- optional timestamp
-                );
-            """)
-            conn.commit()
-            cur.close()
-            conn.close()
-        except Exception as e:
-            print_psycopg2_exception(e)
-            conn.rollback()
-        finally:
-            if cur:
-                cur.close()
-            if conn:
-                conn.close()
-    
-
-
-def insert_embeddings(chunks: list[dict], embeddings) -> None:
-    """
-    Insert embedding vectors to embeddings table
-    """
-    conn = get_connection()
-    cur = conn.cursor()
-
+    # 1. Prepare data (list of tuples)
     rows = []
     for chunk, emb in zip(chunks, embeddings):
         rows.append((
-            chunk["id"],                     
-            chunk["text"],
-            emb.tolist(),              
-            chunk["chunk_index"],
+            chunk.get("id", "fallback-id"),
+            chunk.get("text", ""),
+            emb.tolist(), 
+            chunk.get("chunk_index", 0),  # Safe access with default value
             json.dumps(chunk.get("metadata", {}))
         ))
 
-    execute_values(cur,
-        """
-        INSERT INTO embeddings (id, text, embedding, chunk_index, metadata)
-        VALUES %s
-        ON CONFLICT (id) DO UPDATE SET
-            embedding = EXCLUDED.embedding,
-            metadata  = EXCLUDED.metadata
-        """,
-        rows,
-        template="(%s, %s, %s::vector, %s, %s)"
-    )
+    if not rows:
+        return
 
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        # 2. Use copy_records_to_table for high-performance bulk insert
+        await conn.copy_records_to_table(
+            'embeddings', 
+            records=rows, 
+            columns=('id', 'text', 'embedding', 'chunk_index', 'metadata')
+        )
+    except Exception as e:
+        # logger.error(f"Database insertion failed: {e}")
+        # In a script, you might want to see the real error rather than just a 500
+        raise e
 
 
-def search_similar(text_query: str, top_k: int = 5) -> list[tuple]:
+async def search_similar(
+    text_query: str, 
+    top_k: int = 5,
+    conn: asyncpg.Connection = Depends(get_db_conn)
+) -> list[dict]:
     """
     Search similar chunks using pgvector cosine distance.
     """
-    query_emb = model.encode([text_query])[0]
+    # 1. Encode the query
+    query_emb = model.encode([text_query])[0].tolist() # Convert to list for asyncpg
 
-    conn = get_connection()
-    if not conn:
-        raise 
-    cur = conn.cursor()
-
-    results: list[tuple]
-    
-    cur.execute("""
+    # 2. Execute the query using conn.fetch (returns list of asyncpg.Record)
+    results = await conn.fetch("""
         SELECT 
             id,
             text,
             metadata,
-            embedding <=> %s::vector AS distance
+            embedding <=> $1::vector AS distance
         FROM embeddings
-        ORDER BY embedding <=> %s::vector ASC
-        LIMIT %s;
-    """, (
-        query_emb.tolist(),
-        query_emb.tolist(),
-        top_k
-    ))
+        ORDER BY embedding <=> $1::vector ASC
+        LIMIT $2;
+    """, 
+        query_emb,  # $1
+        top_k       # $2
+    )
 
-    results = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    return results
-
-# test DB connection
-if __name__ == "__main__":
-    conn = get_connection()
-    if conn:
-        print("Connect DB success")
-    conn.close()
+    # 3. Convert asyncpg.Record objects to standard Python dicts
+    return [dict(record) for record in results]
+    
+    # NOTE: No explicit conn.close() here! The dependency handles release.

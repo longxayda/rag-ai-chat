@@ -2,28 +2,39 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 
-from .routers import chats, docs
+from .routers import chats, docs, heritages
 from .core.config import settings
-from .core.database import Database
+from .core.database import AsyncDatabase
 from .exceptions.handlers import register_exception_handlers
+
+from fastapi.middleware.cors import CORSMiddleware
+
 
 
 # Database connection
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Database.initialize()
+    await AsyncDatabase.initialize()
     yield
-    Database.close()
+    await AsyncDatabase.close()
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or specific origin
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Global Exception Handlers
 register_exception_handlers(app)
 
-
 # Routes
 app.include_router(chats.router)
 app.include_router(docs.router)
+app.include_router(heritages.router)
 
 @app.get("/")
 async def root():

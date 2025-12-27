@@ -20,19 +20,19 @@ async def api_exception_handler(request: Request, exc: ApiException):
     )
     
 async def postgres_error_handler(request: Request, exc: psycopg2.Error):
-        logger.exception("PostgreSQL Error: %s", exc)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "detail": "Internal Server Error",
-            }
-        )
+    logger.exception("PostgreSQL Error: %s", exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal Server Error",
+        }
+    )
     
 async def global_exception_handler(request: Request, exc: Exception):
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"}
-        )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"}
+    )
         
 
 def register_exception_handlers(app: FastAPI):
