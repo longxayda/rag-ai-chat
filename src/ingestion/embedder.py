@@ -3,7 +3,8 @@ import numpy as np
 from typing import Any
 import asyncio
 
-model_name = "all-MiniLM-L6-v2"
+# model_name = "all-MiniLM-L6-v2"
+model_name = "keepitreal/vietnamese-sbert"
 model = SentenceTransformer(model_name)
 async def get_embeddings(chunks_from_doc: list[dict]) -> Any:
     """

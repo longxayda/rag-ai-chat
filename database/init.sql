@@ -35,7 +35,7 @@ CREATE TABLE embeddings (
     id TEXT PRIMARY KEY,               -- chunk id
     document_id UUID NOT NULL,         -- parent document
     text TEXT NOT NULL,
-    embedding VECTOR(384) NOT NULL,
+    embedding VECTOR(768) NOT NULL,
     chunk_index INT,
     metadata JSONB,
     created_at TIMESTAMP DEFAULT NOW(),

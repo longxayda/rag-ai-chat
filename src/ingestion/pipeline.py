@@ -11,13 +11,12 @@ from .import embedder
 from ..services import rag, task_logs
 from ..core.database import AsyncDatabase
 from ..core import database
-from ..utils.file import compute_file_hash, clean_vietnamese_text
+from ..utils.file import compute_file_hash
 from . import chunker
 
 from ..extraction.retriever import collect_heritage_chunks, collect_people_chunks
 from ..extraction.extractor import extract_heritages_from_chunks, extract_people_from_chunks
 from ..services.rag import insert_heritages, insert_people
-from ..linking.engine import run_linking_engine
 
 logger = logging.getLogger(__name__)
 
@@ -108,12 +107,12 @@ async def run_heritage_pipeline(
 
                     # 4️⃣ Process + chunk
                     document_obj = loader.process_file(document)
-                    document_obj["text"] = clean_vietnamese_text(document_obj["text"])
+                    # document_obj["text"] = clean_vietnamese_text(document_obj["text"])
                     
                     with open(processed_file_path / "pages.json", 'w', encoding='utf-8') as outfile:
                         json.dump(document_obj, outfile, indent=4, ensure_ascii=False)
                         
-                    chunks = chunker.semantic_chunk_text(text=document_obj['text'])
+                    chunks = chunker.recursive_chunk_text(text=document_obj['text'])
                     
                     if not chunks:
                         continue
@@ -134,18 +133,11 @@ async def run_heritage_pipeline(
 
                     # 6️⃣ Embed AFTER dedup confirmed
                     chunks, embeddings = await embedder.get_embeddings(chunk_docs)
-
+                    print("Chunk: ", chunks[1])
+                    print("Embedding: ", embeddings[1])
                     # 7️⃣ Insert embeddings
                     await rag.insert_embeddings(conn, chunks, embeddings)
                     print(f"Successfully indexed: {document.name}")
-                    
-                    # await process_heritage_extraction(conn, document_id)
-                    # await process_people_extraction(conn, document_id)
-
-                # try:
-                #     await run_linking_engine(conn, document_id)
-                # except Exception as e:
-                #     logger.warning(f"Linking failed for {document_id}: {e}")
 
     except Exception as e:
         logger.error(f"Pipeline failed: {e}")

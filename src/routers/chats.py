@@ -9,7 +9,7 @@ from ..services import rag
 router = APIRouter()
 
 OLLAMA_MODEL = "gemma3:1b"
-TOP_RELEVANT_CONTEXT = 4
+TOP_RELEVANT_CONTEXT = 3
 
 # --- API Routes ---
 
@@ -22,12 +22,11 @@ async def rag_stream(
     request: QueryRequest,
     conn = Depends(database.get_db_conn)
 ):
-    ctx = await rag.search_similar(request.query, 5, conn)
-    ctx_str = chat.format_context(ctx) if ctx else "No relevant documents found."
-    full_prompt = chat.build_rag_prompt(request.query, ctx_str)
+    ctxs = await rag.hybrid_search(request.query, TOP_RELEVANT_CONTEXT, conn)
+    ctx_str = chat.format_context(ctxs) if ctxs else "No relevant documents found."
+    full_prompt = chat.build_rag_prompt_v3(request.query, ctx_str)
 
     return StreamingResponse(
         chat.stream_generator(full_prompt, model=OLLAMA_MODEL),
         media_type="text/plain"
     )
-    

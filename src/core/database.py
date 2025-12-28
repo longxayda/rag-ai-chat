@@ -80,4 +80,5 @@ async def get_db_conn():
             yield conn
     except Exception as e:
         # Handle case where pool is not initialized or database is down
+        logger.exception("Database exception", e)
         raise HTTPException(status_code=503, detail="Database Service Unavailable")
