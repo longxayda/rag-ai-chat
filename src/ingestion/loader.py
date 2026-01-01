@@ -50,6 +50,7 @@ class PdfLoader(BaseLoader):
         try:
             reader = PdfReader(self.file_path)
             texts: List[str] = []
+            page_index: int = 1
 
             for page in reader.pages:
                 try:

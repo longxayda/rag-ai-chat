@@ -13,17 +13,13 @@ TOP_RELEVANT_CONTEXT = 3
 
 # --- API Routes ---
 
-# @router.get("/chat/{chat_id}")
-# async def get_chat(chat_id: str):
-#     raise ChatNotFoundException(chat_id=chat_id)
-
 @router.post("/chat/stream")
 async def rag_stream(
     request: QueryRequest,
     conn = Depends(database.get_db_conn)
 ):
     ctxs = await rag.hybrid_search(request.query, TOP_RELEVANT_CONTEXT, conn)
-    ctx_str = chat.format_context(ctxs) if ctxs else "No relevant documents found."
+    ctx_str = chat.format_context(ctxs) if ctxs else "Không tìm được tài liệu liên quan."
     full_prompt = chat.build_rag_prompt_v3(request.query, ctx_str)
 
     return StreamingResponse(

@@ -35,16 +35,15 @@ Ghi nhớ các yêu cầu sau:
 3. Nếu thông tin từ bối cảnh thứ 2 trở đi có mâu thuẫn với thông tin từ ngữ cảnh đầu tiên, sử dụng thông tin ngữ cảnh đầu tiên.
 4. Nếu không có thông tin, hãy nói rõ rằng tài liệu không cung cấp câu trả lời.
 BÂY GIỜ, Sử dụng CÁC NGỮ CẢNH dưới đây để trả lời CÂU HỎI.
-
+------------------
 NGỮ CẢNH:
 {context_str}
-
+------------------
 CÂU HỎI:
 {user_query}
-
-Answer:
+------------------
+CÂU TRẢ LỜI:
 """ 
-    print(prompt)
     return prompt
 
 
@@ -128,7 +127,6 @@ def build_rag_prompt_v2(user_query: str, context_str: str) -> str:
     Prompt Augmented RAG có xét độ tương đồng (distance)
     nhằm tăng độ chính xác và giảm hallucination.
     """
-    print(context_str)
     return f"""
 Bạn là một trợ lý AI trả lời câu hỏi dựa trên hệ thống RAG (Retrieval-Augmented Generation).
 Bạn **CHỈ được phép sử dụng thông tin từ các NGỮ CẢNH bên dưới** để trả lời.
@@ -220,9 +218,15 @@ async def stream_generator(prompt: str, model: str) -> AsyncGenerator[str, None]
         )
 
         async for chunk in stream:
+            
             content = chunk.get("message", {}).get("content", "")
             if content:
                 yield content
+            if chunk.done:
+                print(f"How long the response took to generate: {chunk.total_duration / 1000000000}")
+                print(f"How long the model took to load: {chunk.load_duration / 1000000000}")
+                print(f"Output tokens were processes: {chunk.eval_count}")
+                print(f"How long it took to generate the output tokens: {chunk.eval_duration / 1000000000}")
 
     except Exception as e:
         yield f"\n[Error generating response: {str(e)}]"
