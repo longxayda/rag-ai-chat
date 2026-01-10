@@ -35,9 +35,8 @@ class AsyncDatabase:
             cls._pool = await asyncpg.create_pool(
                 user=settings.postgres_user,
                 password=settings.postgres_password,
-                host=settings.postgres_host,
                 port=settings.postgres_port,
-                database=settings.postgres_name,
+                database=settings.postgres_db,
                 min_size=5,  # Same as minconn
                 max_size=20, # Same as maxconn
             )
@@ -80,5 +79,5 @@ async def get_db_conn():
             yield conn
     except Exception as e:
         # Handle case where pool is not initialized or database is down
-        logger.exception("Database exception", e)
+        logger.exception("Database exception")
         raise HTTPException(status_code=503, detail="Database Service Unavailable")

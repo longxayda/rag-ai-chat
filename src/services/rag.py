@@ -25,13 +25,14 @@ async def insert_embeddings(conn, chunks: list[dict], embeddings: np.ndarray):
             chunk.get("id", "fallback-id"),
             chunk["document_id"],
             chunk.get("text", ""),
-            emb.tolist(),           # list → text cast by SQL
+            emb.tolist(),                 # pgvector OK
             chunk.get("chunk_index", 0),
             json.dumps(chunk.get("metadata", {}))
         ))
 
     async with conn.transaction():
         await conn.executemany(query, records)
+
 
 
 async def insert_document(conn, document_id, filename, source_path, file_hash):
@@ -109,6 +110,7 @@ async def hybrid_search(
     processed_results = []
     for record in results:
         result = dict(record)
+        
         distance = result['distance']
         text_lower = result['text'].lower()
         

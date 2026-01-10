@@ -5,8 +5,7 @@ class Settings(BaseSettings):
     app_name: str = "RAG server"
     postgres_user: str
     postgres_password: str
-    postgres_name: str
-    postgres_host: str
+    postgres_db: str
     postgres_port: int
     
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')

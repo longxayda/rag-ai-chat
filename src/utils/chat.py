@@ -24,9 +24,7 @@ def format_context(results: list[dict]) -> str:
         if item.get("text")
     )
 
-
-
-
+            
 def build_rag_prompt_v3(user_query: str, context_str: str) -> str:
     prompt = f"""Bạn là trợ lý AI trả lời câu hỏi dựa trên tài liệu được cung cấp.
 Ghi nhớ các yêu cầu sau:
